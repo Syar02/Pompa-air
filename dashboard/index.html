@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pompa Air</title>
+<script src="https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f6f8; --card: #ffffff; --text: #17202a; --muted: #5d6d7e; --line: #dde3e9;
+    --accent: #1f6feb; --ok: #1a7f37; --ok-bg: #e6f4ea; --bad: #b42318; --bad-bg: #fdecea;
+    --warn: #9a6700; --warn-bg: #fff4d6; --off: #8a96a3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1419; --card: #182028; --text: #e6edf3; --muted: #9aa7b4; --line: #2a3540;
+      --accent: #4c8dff; --ok: #4ac26b; --ok-bg: #12301c; --bad: #ff7b72; --bad-bg: #3a1613;
+      --warn: #e3b341; --warn-bg: #352a0c; --off: #6e7b88;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 520px; margin: 0 auto; padding: 20px 16px 40px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 18px; margin-bottom: 14px; }
+  .pill { font-size: 12.5px; padding: 3px 10px; border-radius: 999px; background: var(--bad-bg); color: var(--bad); white-space: nowrap; }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 10px 0 4px; }
+  input, select { width: 100%; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px;
+                  background: var(--bg); color: var(--text); font: inherit; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer;
+           background: var(--accent); color: #fff; }
+  button.sec { background: transparent; color: var(--muted); border: 1px solid var(--line); font-weight: 500; padding: 5px 10px; }
+  button.stop { background: var(--bad); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  .err { color: var(--bad); font-size: 13.5px; min-height: 1.2em; margin-top: 10px; }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 10px; }
+  .pump { display: flex; align-items: center; gap: 18px; }
+  .dot { width: 78px; height: 78px; border-radius: 50%; flex: none; display: grid; place-items: center;
+         border: 3px solid var(--off); color: var(--off); font-weight: 700; font-size: 13px; }
+  .dot.on { border-color: var(--ok); color: var(--ok); background: var(--ok-bg); }
+  .big { font-size: 22px; font-weight: 700; }
+  .muted { color: var(--muted); font-size: 13.5px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-top: 14px; font-size: 13.5px; }
+  .grid span:nth-child(odd) { color: var(--muted); }
+  .ctl { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: end; }
+  .ctl label { margin-top: 0; }
+  .banner { display: none; background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 8px 10px; font-size: 13px; margin-top: 12px; }
+  ol { list-style: none; margin: 0; padding: 0; font: 12.5px/1.5 ui-monospace, Consolas, monospace; max-height: 240px; overflow: auto; }
+  ol li { padding: 3px 0; border-bottom: 1px solid var(--line); word-break: break-word; }
+  ol li time { color: var(--muted); margin-right: 6px; }
+  h2 { font-size: 14px; margin: 0 0 10px; color: var(--muted); font-weight: 600; }
+  [hidden] { display: none !important; }
+  @media (max-width: 420px) { .ctl { grid-template-columns: 1fr 1fr; } .ctl > div { grid-column: 1 / -1; } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Pompa Air</h1>
+    <span id="brokerPill" class="pill">Belum masuk</span>
+  </header>
+
+  <!-- Login -->
+  <section id="loginCard" class="card">
+    <form id="loginForm">
+      <label for="url">Alamat broker (WebSocket)</label>
+      <input id="url" value="ws://localhost:8083" required>
+      <label for="kode">Kode perangkat</label>
+      <input id="kode" value="pompa01" required pattern="[a-z0-9_-]+">
+      <label for="user">Username</label>
+      <input id="user" value="dashboard" autocomplete="username" required>
+      <label for="pass">Password</label>
+      <input id="pass" type="password" autocomplete="current-password" required>
+      <div style="margin-top:14px"><button id="loginBtn" type="submit">Masuk</button></div>
+      <div id="loginErr" class="err"></div>
+      <div class="hint">Password tidak disimpan. Halaman ini hanya bisa menjangkau broker di laptop ini.</div>
+    </form>
+  </section>
+
+  <!-- Panel -->
+  <section id="panel" hidden>
+    <div class="card">
+      <div class="pump">
+        <div id="dot" class="dot">MATI</div>
+        <div>
+          <div id="pumpText" class="big">Menunggu data…</div>
+          <div id="sisa" class="muted"></div>
+        </div>
+      </div>
+      <div class="grid">
+        <span>Perangkat</span><span id="devStatus">—</span>
+        <span>Kejadian terakhir</span><span id="catatan">—</span>
+        <span>Sinyal WiFi</span><span id="rssi">—</span>
+        <span>Data terakhir</span><span id="lastSeen">—</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ctl">
+        <div>
+          <label for="durasi">Nyala selama</label>
+          <select id="durasi">
+            <option value="1">1 menit</option>
+            <option value="5">5 menit</option>
+            <option value="10" selected>10 menit</option>
+            <option value="15">15 menit</option>
+            <option value="30">30 menit</option>
+            <option value="60">60 menit</option>
+          </select>
+        </div>
+        <button id="onBtn" type="button">Nyalakan</button>
+        <button id="offBtn" type="button" class="stop">Matikan</button>
+      </div>
+      <div id="offlineBanner" class="banner">
+        Perangkat sedang offline. Perintah disimpan broker (QoS 1) dan dijalankan saat perangkat online lagi,
+        asalkan belum lebih dari 2 menit.
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h2 style="margin:0">Log MQTT</h2>
+        <button id="logoutBtn" type="button" class="sec">Keluar</button>
+      </div>
+      <ol id="log"></ol>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const store = {
+  get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch {} },
+};
+
+let client = null, BASE = "";
+const S = { brokerOk: false, devOnline: null, state: null, stateAt: 0 };
+
+/* Isi ulang pengaturan terakhir (tanpa password) */
+for (const id of ["url", "kode", "user"]) { const v = store.get("pompa-" + id); if (v) $("#" + id).value = v; }
+
+function log(txt) {
+  const li = document.createElement("li");
+  li.innerHTML = `<time>${new Date().toLocaleTimeString("id-ID")}</time>`;
+  li.append(txt);
+  $("#log").prepend(li);
+  while ($("#log").children.length > 60) $("#log").lastChild.remove();
+}
+
+function fmtDurasi(s) {
+  const m = Math.floor(s / 60), d = s % 60;
+  return `${String(m).padStart(2, "0")}:${String(d).padStart(2, "0")}`;
+}
+
+function render() {
+  const pill = $("#brokerPill");
+  pill.className = "pill" + (S.brokerOk ? " ok" : "");
+  pill.textContent = S.brokerOk ? "Broker terhubung" : (client ? "Broker terputus…" : "Belum masuk");
+
+  $("#devStatus").textContent = S.devOnline === null ? "—" : (S.devOnline ? "Online" : "Offline");
+  $("#devStatus").style.color = S.devOnline ? "var(--ok)" : (S.devOnline === false ? "var(--bad)" : "");
+  $("#offlineBanner").style.display = S.brokerOk && S.devOnline === false ? "block" : "none";
+  $("#onBtn").disabled = $("#offBtn").disabled = !S.brokerOk;
+
+  const t = S.state;
+  if (!t) return;
+  const nyala = t.pompa === 1;
+  $("#dot").className = "dot" + (nyala ? " on" : "");
+  $("#dot").textContent = nyala ? "NYALA" : "MATI";
+  $("#pumpText").textContent = nyala ? "Pompa menyala" : "Pompa mati";
+  const sisa = nyala ? Math.max(0, t.sisa_s - Math.floor((Date.now() - S.stateAt) / 1000)) : 0;
+  $("#sisa").textContent = nyala ? `Mati otomatis dalam ${fmtDurasi(sisa)}` : "";
+  $("#catatan").textContent = t.catatan || "—";
+  $("#rssi").textContent = Number.isFinite(t.rssi) ? `${t.rssi} dBm` : "—";
+  $("#lastSeen").textContent = new Date(S.stateAt).toLocaleTimeString("id-ID");
+}
+setInterval(render, 1000);
+
+function kirim(cmd) {
+  if (!client || !S.brokerOk) return;
+  const payload = `${cmd}@${Math.floor(Date.now() / 1000)}`;   // stempel waktu: perintah basi ditolak ESP32
+  log(`→ kirim "${payload}" ke ${BASE}/set (QoS 1)`);
+  client.publish(BASE + "/set", payload, { qos: 1 }, err => {
+    if (err) log(`✗ gagal: ${err.message}`);
+    else log("✓ PUBACK: broker sudah menerima perintah");
+  });
+}
+$("#onBtn").onclick = () => kirim(`on:${$("#durasi").value}`);
+$("#offBtn").onclick = () => kirim("off");
+
+function connect(url, kode, user, pass) {
+  BASE = `aranus/${kode}/pompa`;
+  $("#loginErr").textContent = "";
+  $("#loginBtn").disabled = true;
+  log(`menghubungkan ke ${url} sebagai "${user}"…`);
+  client = mqtt.connect(url, {
+    username: user, password: pass,
+    clientId: "web-" + Math.random().toString(16).slice(2, 10),
+    clean: true, reconnectPeriod: 3000, connectTimeout: 10000,
+  });
+  client.on("connect", () => {
+    S.brokerOk = true;
+    $("#loginCard").hidden = true;
+    $("#panel").hidden = false;
+    $("#loginBtn").disabled = false;
+    log("✓ terhubung ke broker");
+    client.subscribe(BASE + "/#", { qos: 1 }, err => {
+      if (err) log(`✗ subscribe gagal: ${err.message}`);
+      else { log(`subscribe ${BASE}/# (QoS 1)`); kirim("ping"); }
+    });
+    render();
+  });
+  client.on("message", (topic, msg) => {
+    const k = topic.slice(BASE.length + 1), txt = msg.toString();
+    if (k === "status") {
+      S.devOnline = txt === "online";
+      log(`← status: ${txt}`);
+    } else if (k === "state") {
+      try { S.state = JSON.parse(txt); } catch { return; }
+      // state bersifat retained (bisa pesan lama): hitung dari jam perangkat bila ada
+      S.stateAt = S.state.ts > 1700000000 ? Math.min(S.state.ts * 1000, Date.now()) : Date.now();
+      log(`← state: pompa ${S.state.pompa ? "NYALA" : "MATI"}${S.state.pompa ? `, sisa ${fmtDurasi(S.state.sisa_s)}` : ""} (${S.state.catatan})`);
+    }
+    render();
+  });
+  client.on("error", err => {
+    const ditolak = err.code === 4 || err.code === 5 || /not authori|bad user/i.test(err.message);
+    const pesan = ditolak ? "Login ditolak: periksa username dan password." : `Gagal: ${err.message}`;
+    log(`✗ ${pesan}`);
+    if (ditolak) logout(pesan);
+  });
+  client.on("close", () => { if (S.brokerOk) log("koneksi broker terputus, mencoba lagi…"); S.brokerOk = false; render(); });
+}
+
+function logout(pesan) {
+  if (client) { client.end(true); client = null; }
+  S.brokerOk = false; S.devOnline = null; S.state = null;
+  $("#panel").hidden = true;
+  $("#loginCard").hidden = false;
+  $("#loginBtn").disabled = false;
+  $("#pass").value = "";
+  $("#loginErr").textContent = pesan || "";
+  render();
+}
+$("#logoutBtn").onclick = () => logout();
+
+$("#loginForm").onsubmit = e => {
+  e.preventDefault();
+  const v = id => $("#" + id).value.trim();
+  for (const id of ["url", "kode", "user"]) store.set("pompa-" + id, v(id));
+  connect(v("url"), v("kode"), v("user"), $("#pass").value);
+};
+
+/* Broker tidak terjangkau sama sekali: beri tahu setelah 10 detik */
+setInterval(() => {
+  if (client && !S.brokerOk && !$("#loginCard").hidden)
+    $("#loginErr").textContent = "Broker belum terjangkau. Pastikan Mosquitto berjalan dan listener WebSocket 8083 aktif.";
+}, 10000);
+render();
+</script>
+</body>
+</html>

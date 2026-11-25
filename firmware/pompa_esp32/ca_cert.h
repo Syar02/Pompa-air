@@ -1,0 +1,29 @@
+/* Sertifikat CA broker MQTT (publik, bukan rahasia).
+ * Dibuat otomatis oleh tools/buat_ca_cert.sh dari /etc/mosquitto/certs/ca.crt.
+ * Jangan diedit manual: jalankan ulang skrip itu bila CA broker diganti. */
+#ifndef CA_CERT_H
+#define CA_CERT_H
+
+static const char CA_CERT[] = R"PEM(
+-----BEGIN CERTIFICATE-----
+MIIDIzCCAgugAwIBAgIUc3Fc7TwDj9bWYRhwPwhFOj5sc38wDQYJKoZIhvcNAQEL
+BQAwGTEXMBUGA1UEAwwOSGlkcm8gTG9rYWwgQ0EwHhcNMjYxMTI1MDIyNzM2WhcN
+MzYxMTIyMDIyNzM2WjAZMRcwFQYDVQQDDA5IaWRybyBMb2thbCBDQTCCASIwDQYJ
+KoZIhvcNAQEBBQADggEPADCCAQoCggEBAMipQFdQo97BBADvvL6LnPDmZ73NH2xG
+KABMwxQ5Mbe/0tKDGJJ6riFMdMz5BiTZE7hSDaToj0DRcJ4H4WY5nz7/m/Sr0awc
+fB412bfjt+6cPwdUsksA2V6vwDN1iSkCABI9BERnjdJJJ2UWMo2QuphpUvVwXira
+YDPxrQDfYv5nMe5wz6qP5CU3L63wR0FB5Td9kht+hTNOk77h38JKMcGgQ1FkbWAo
+1rJnyV4cdJGCyEnVogGEwk5V4FSGjp47HpFfOLIsohMFKbb9JhNAh/H2N7g7o6Qt
+a4fpikThwKImwlzIuXoPfT6WIke2APJUPH6n0aTeLbzqMXFDwZMpH7cCAwEAAaNj
+MGEwHQYDVR0OBBYEFFcweAKsK3PbsszcHM3d+IVoGoHuMB8GA1UdIwQYMBaAFFcw
+eAKsK3PbsszcHM3d+IVoGoHuMA8GA1UdEwEB/wQFMAMBAf8wDgYDVR0PAQH/BAQD
+AgEGMA0GCSqGSIb3DQEBCwUAA4IBAQBKMAA30wbf8FcouCGdcea4bgGbx0YAdOiM
+wrlOY2GwrVk8gy41cV6MmwvLB0vKxy9AKG83gn+5fJFRhTkfvMHq92Fu3oypOeoY
+gvnCrrsOMko5rOjfI4CXToFFkd6bztzzLc5Zkt/CzR9WSjB+dWHDURGKspdLov+R
+/UMj5QGaKEDb88KAQY8pMvSyhGIff256cGfLuuZd5jS/CBc7Zs5OPKJr6mQt6uZF
+Or5GD+n6IrxWUcqDBkXhxUzbyBZS9qpyrHR58ND8wx3B6du8JEtZRkIH+4o/uYnc
+cnB+dO4UKkeBmC5AQsTtPhVL9E4835WtUFActcUchwP+obCFwmQH
+-----END CERTIFICATE-----
+)PEM";
+
+#endif
